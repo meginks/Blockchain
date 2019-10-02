@@ -92,9 +92,11 @@ class Blockchain(object):
         zeroes
         :return: A valid proof for the provided block
         """
-        # TODO
-        pass
-        # return proof
+        block_string = json.dumps(block, sort_keys=True).encode()
+        proof = 0 
+        while self.valid_proof(block_string, proof) is False: 
+            proof += 1 
+        return proof 
 
     @staticmethod
     def valid_proof(block_string, proof):
@@ -108,10 +110,10 @@ class Blockchain(object):
         correct number of leading zeroes.
         :return: True if the resulting hash is a valid proof, False otherwise
         """
-        # TODO
-        pass
-        # return True or False
-
+        guess = f'{block_string} {proof}'.encode() 
+        guess_hash = 
+        hashlib.sha256(guess).hexdigest()
+        return guess_hash[:3] == "000"
     def valid_chain(self, chain):
         """
         Determine if a given blockchain is valid.  We'll need this
@@ -130,15 +132,20 @@ class Blockchain(object):
             print(f'{block}')
             print("\n-------------------\n")
             # Check that the hash of the block is correct
-            # TODO: Return false if hash isn't correct
-
+            if block['previous_hash'] != self.hash(prev_block): 
+                print(f'Invalid previous hash on block {current_index}') 
+                return False
             # Check that the Proof of Work is correct
-            # TODO: Return false if proof isn't correct
-
-            prev_block = block
+            
+            block_string = json.dumps(prev_block, sort_keys=True).encode() 
+            if not self.valid_proof(block_string, block['proof']):
+                print(f'Found invalid proof on block {current_index}') 
+                return False 
+            
+            prev_block = block 
             current_index += 1
-
         return True
+
 
 
 # Instantiate our Node
