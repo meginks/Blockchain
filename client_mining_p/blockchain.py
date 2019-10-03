@@ -1,16 +1,22 @@
 # Paste your version of blockchain.py from the basic_block_gp
 # folder here
+import sys 
+import requests
 import hashlib
 import json
+from urllib.parse import urlparse
 from time import time
 from uuid import uuid4
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request 
+
+
 class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
         self.nodes = set()
         self.new_block(previous_hash=1, proof=100)
+
     def new_block(self, proof, previous_hash=None):
         """
         Create a new Block in the Blockchain
@@ -28,6 +34,7 @@ class Blockchain(object):
         self.current_transactions = []
         self.chain.append(block)
         return block
+
     def new_transaction(self, sender, recipient, amount):
         """
         Creates a new transaction to go into the next mined Block
@@ -42,6 +49,7 @@ class Blockchain(object):
             'amount': amount,
         })
         return self.last_block['index'] + 1
+
     @staticmethod
     def hash(block):
         """
@@ -51,21 +59,13 @@ class Blockchain(object):
         """
         block_string = json.dumps(block, sort_keys=True).encode()
         return hashlib.sha256(block_string).hexdigest()
+
     @property
     def last_block(self):
         return self.chain[-1]
-    def proof_of_work(self, block):  # START HERE
-        """
-        Simple Proof of Work Algorithm
-        Find a number p such that hash(last_block_string, p) contains 6 leading
-        zeroes
-        :return: A valid proof for the provided block
-        """
-        block_string = json.dumps(block, sort_keys=True).encode()
-        proof = 0
-        while self.valid_proof(block_string, proof) is False:
-            proof += 1  
-        return proof
+
+    
+
     @staticmethod
     def valid_proof(block_string, proof):  # STEP TWO
         """
@@ -81,6 +81,7 @@ class Blockchain(object):
         guess = f'{block_string}{proof}'.encode()  
         guess_hash = hashlib.sha256(guess).hexdigest() 
         return guess_hash[:3] == "000"
+
     def valid_chain(self, chain):
         """
         Determine if a given blockchain is valid.  We'll need this
@@ -105,30 +106,52 @@ class Blockchain(object):
             prev_block = block
             current_index += 1
         return True
+        
 # Instantiate our Node
 app = Flask(__name__)
 node_identifier = str(uuid4()).replace('-', '')
 
 blockchain = Blockchain()
-@app.route('/mine', methods=['GET']) 
+
+@app.route('/mine', methods=['POST']) 
 def mine():
-    proof = blockchain.proof_of_work(blockchain.last_block)
+    # proof = blockchain.proof_of_work(blockchain.last_block)
+    last_block = blockchain.last_block 
+    last_block_string = json.dumps(last_block, sort_keys=True).encode()
+
+    values = request.get_json()
+    submitted_proof = values['proof']
+
+    if not blockchain.valid_proof(last_block_string, submitted_proof):
+        response = {
+            'message': "Proof was invalid or too late"
+        }
+
     blockchain.new_transaction(
          sender = "0", 
          recipient = node_identifier,
          amount=1,
     )
     previous_hash = blockchain.hash(blockchain.last_block)
-    block = blockchain.new_block(proof, previous_hash)
+    block = blockchain.new_block(submitted_proof, previous_hash)
     response = {
         'message': "New Block Forged",
         'index': block['index'],
         'transactions': block['transactions'],
         'proof': block['proof'],
         'previous_hash': block['previous_hash'],
-        'message': f"Proof found {proof}"
+        'message': f"Proof found {submitted_proof}"
     }
     return jsonify(response), 200
+
+@app.route('/last_proof', methods=['GET'])
+def return_last_block():
+    last_block = blockchain.chain[-1]
+    response = {
+        'last_proof': last_block
+    }
+    return jsonify(response), 200
+
 @app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     values = request.get_json()
@@ -140,12 +163,14 @@ def new_transaction():
                                        values['amount'])
     response = {'message': f'Transaction will be added to Block {index}'}
     return jsonify(response), 201
+
 @app.route('/chain', methods=['GET'])
 def full_chain():
     response = {
         'chain': blockchain.chain
     }
     return jsonify(response), 200
+
 @app.route('/valid_chain', methods=['GET'])
 def validate_chain():
     result = blockchain.valid_chain(blockchain.chain)
@@ -153,5 +178,6 @@ def validate_chain():
         'validity': result
     }
     return jsonify(response), 200
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000) 
